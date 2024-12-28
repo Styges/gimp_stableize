@@ -4,27 +4,38 @@ import json
 import threading
 import gi       # type: ignore
 
-gi.require_version('Gtk', '3.0')
+gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
-SD_BASE_URL = 'http://127.0.0.1:7860/'
-SD_API_URL = SD_BASE_URL + 'sdapi/v1/'
+SD_BASE_URL = "http://127.0.0.1:7860/"
+SD_API_URL = SD_BASE_URL + "sdapi/v1/"
 
 BASE_CONFIG = {
-    "scheduler": "Automatic",
     "save_images": True
 }
 
-BASE_IMG_CONFIG = {
-    "inpainting_mask_invert": True,
-    "inpainting_fill": 1
-}
+def get_list_from_api(uri, param_name):
+    list = []
+
+    for element in get_request(uri):
+        list.append(element[param_name])
+
+    return list
 
 def get_models():
-    return get_request('sd-models')
+    return get_list_from_api("sd-models", "title")
 
 def get_upscaler_models():
-    return get_request('upscalers')
+    return get_list_from_api("upscalers", "name")
+
+def get_latent_upscale_modes():
+    return get_list_from_api("latent-upscale-modes", "name")
+
+def get_samplers():
+    return get_list_from_api("samplers", "name")
+
+def get_schedulers():
+    return get_list_from_api("schedulers", "label")
 
 def get_rembg_models():
     #Hardcoded in base module, not accessible by API
@@ -40,38 +51,38 @@ def get_rembg_models():
     ]
 
 def get_controlnet_models():
-    return get_request('controlnet/model_list', SD_BASE_URL)['model_list']
+    return get_request("controlnet/model_list", SD_BASE_URL)["model_list"]
+
+def get_controlnet_modules():
+    return get_request("controlnet/module_list", SD_BASE_URL)["module_list"]
 
 def get_current_model():
-    return get_request('options')["sd_model_checkpoint"]
+    return get_request("options")["sd_model_checkpoint"]
 
 def get_styles():
-    return get_request('prompt-styles')
-
-def get_samplers():
-    return get_request('samplers')
+    return get_request("prompt-styles")
 
 def get_request(uri, base_url = SD_API_URL):
     with urlopen(base_url + uri) as response:
         return json.loads(response.read())
     
 def txt_to_img(config_data):
-    response = post_request('txt2img', config_data | BASE_CONFIG)
+    response = post_request("txt2img", config_data | BASE_CONFIG)
     
     return response["images"]
 
 def img_to_img(config_data):
-    response = post_request('img2img', config_data | BASE_CONFIG | BASE_IMG_CONFIG)
+    response = post_request("img2img", config_data | BASE_CONFIG)
 
     return response["images"]
 
 def upscale(config_data):
-    response = post_request('extra-single-image', config_data)
+    response = post_request("extra-single-image", config_data)
 
     return response["image"]
 
 def remove_bg(config_data):
-    response = post_request('rembg', config_data, SD_BASE_URL)
+    response = post_request("rembg", config_data, SD_BASE_URL)
 
     return response["image"]
 
@@ -113,12 +124,12 @@ class ProgressBar(Gtk.Application):
         self.timeout_id = GLib.timeout_add(100, self.on_timeout, None)
 
     def on_timeout(self, user_data):
-        progress_json = get_request('progress')
-        progress = progress_json['progress']
+        progress_json = get_request("progress")
+        progress = progress_json["progress"]
 
         if progress > 0:
             self.progress.set_fraction(progress)
-            self.progress.set_text('%s - ETA: %ss' % (progress_json['state']['job'], f"{max(progress_json['eta_relative'], 0):.2f}"))
+            self.progress.set_text("%s - ETA: %ss" % (progress_json["state"]["job"], f"{max(progress_json["eta_relative"], 0):.2f}"))
         
             return True
     

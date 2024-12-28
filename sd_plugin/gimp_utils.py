@@ -44,3 +44,4 @@ def load_file_in_layer(image, file):
     layer.set_offsets(selection_pos.x1, selection_pos.y1)
 
     image.insert_layer(layer, None, 0)
+    image.resize_to_layers()
