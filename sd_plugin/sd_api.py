@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 from urllib.request import Request, urlopen
 import json
+import threading
+import gi       # type: ignore
+
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, GLib
 
 SD_BASE_URL = 'http://127.0.0.1:7860/'
 SD_API_URL = SD_BASE_URL + 'sdapi/v1/'
@@ -77,5 +82,44 @@ def post_request(uri, data: dict, base_url = SD_API_URL):
         headers = {"Content-Type": "application/json"}
     )
 
+    thread = threading.Thread(target=create_progress_bar)
+    thread.start()
+
     with urlopen(request) as response:
+        thread.join()
         return json.loads(response.read())
+
+def create_progress_bar():
+    progress = ProgressBar()
+    progress.run()
+
+class ProgressBar(Gtk.Application):
+
+    def do_activate(self):
+        window = Gtk.ApplicationWindow(application=self)
+        window.set_title("Generation progress")
+        self.progress = Gtk.ProgressBar(show_text=True)
+
+        window.set_border_width(20)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        window.add(vbox)
+
+        vbox.pack_start(self.progress, True, True, 0)
+
+        window.present()
+        window.show_all()
+
+        self.timeout_id = GLib.timeout_add(100, self.on_timeout, None)
+
+    def on_timeout(self, user_data):
+        progress_json = get_request('progress')
+        progress = progress_json['progress']
+
+        if progress > 0:
+            self.progress.set_fraction(progress)
+            self.progress.set_text('%s - ETA: %ss' % (progress_json['state']['job'], f"{max(progress_json['eta_relative'], 0):.2f}"))
+        
+            return True
+    
+        self.quit()
